@@ -48,7 +48,7 @@ from pymkv.ISO639_2 import is_iso639_2
 from pymkv.BCP47 import is_bcp47
 
 
-class MKVTrack:
+class MKVTrack():
     """A class that represents a track for an :class:`~pymkv.MKVFile` object.
 
     :class:`~pymkv.MKVTrack` objects are video, audio, or subtitles. Tracks can be standalone files or a single track
@@ -272,9 +272,11 @@ class MKVTrack:
         return self._language_ietf
 
     @language_ietf.setter
-    def language_ietf(self, language_ietf):
+    def language_ietf(self, language_ietf): # es-150
         if language_ietf is None or is_bcp47(language_ietf):
             self._language_ietf = language_ietf
+        elif (is_bcp47(language_ietf.split('-')[0])):
+            self._language_ietf = language_ietf.split('-')[0]
         else:
             raise ValueError('not a BCP47 language code')
 
@@ -312,7 +314,7 @@ class MKVTrack:
         """str: The type of track such as video or audio."""
         return self._track_type
 
-    def extract(self, output_path: str = None, silent: bool = False) -> str:
+    def extract(self, output_directory: str = None, output_filename = None, silent: bool = False) -> str:
         """Extract the track as a file.
 
         Parameters
@@ -329,16 +331,25 @@ class MKVTrack:
             extract_info_file += f".{self.extension}"
         if (not self.language and not self.expansion) and self.track_name:
             extract_info_file += f"_{self.track_name}"
-        if output_path is None:
-            output_path = f"{self.file_path}{extract_info_file}"
-        else:
-            file = Path(self.file_path)
-            output_path = os.path.join(output_path, f"{file.name}{extract_info_file}")
-        output_path = expanduser(output_path)
-        command = [self.mkvextract_path, 'tracks', f"{self.file_path}", f"{self.track_id}:{output_path}"]
-        if silent:
-            sp.run(command, stdout=open(devnull, 'wb'), check=True)
-        else:
-            print('Running with command:\n"' + " ".join(command) + '"')
-            sp.run(command, check=True, capture_output=True)
+
+        if output_directory is None:
+            output_directory = self.file_path
+
+        if output_filename is None:
+            mkv_filename = Path(self.file_path).name
+            output_filename = f"{mkv_filename}{extract_info_file}"
+
+        output_path = expanduser(os.path.join(output_directory, output_filename))
+        
+        command = [self.mkvextract_path, 'tracks', f'{self.file_path}', f'{self.track_id}:{output_path}']
+        try:
+            if silent:
+                sp.run(command, stdout=open(devnull, 'wb'), check=True)
+            else:
+                print('Running with command:\n"' + " ".join(command) + '"')
+                sp.run(command, check=True, capture_output=True)
+        except sp.CalledProcessError as err:
+            message = err.output.decode('utf-8')
+            print(message)
+
         return output_path
